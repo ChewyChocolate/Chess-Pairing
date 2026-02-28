@@ -14,13 +14,15 @@ class Match:
         self.black = black
         self.is_bye = is_bye
         self.result: Optional[Result] = None
+        self.timestamp: Optional[str] = None # When the result was set
 
     def to_dict(self):
         return {
             "white_id": self.white.id if self.white else None,
             "black_id": self.black.id if self.black else None,
             "is_bye": self.is_bye,
-            "result": self.result.value if self.result else None
+            "result": self.result.value if self.result else None,
+            "timestamp": self.timestamp
         }
 
     def __repr__(self):

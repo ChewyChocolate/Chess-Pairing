@@ -2,6 +2,7 @@ import json
 import os
 import csv
 import math
+from datetime import datetime
 from typing import List, Optional
 from enum import Enum
 
@@ -42,10 +43,12 @@ class Tournament:
         self._total_rounds = value
 
     def get_standings(self) -> List[Player]:
-        """Returns players sorted by score, then Sonneborn-Berger, then Buchholz."""
+        """Returns players sorted by score, then tie-breaks, then rating."""
         for p in self.players:
             p.update_tiebreaks()
-        return sorted(self.players, key=lambda p: (p.score, p.sonneborn_berger, p.buchholz), reverse=True)
+        return sorted(self.players, 
+                      key=lambda p: (p.score, p.sonneborn_berger, p.buchholz, p.rating), 
+                      reverse=True)
 
     def record_match_result(self, match: Match, result_code: str):
         mapping = {
@@ -60,6 +63,7 @@ class Tournament:
 
         res_enum, _, _ = mapping[result_code]
         match.result = res_enum
+        match.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.recalculate_state()
 
     def recalculate_state(self):
@@ -137,6 +141,15 @@ class Tournament:
         self.rounds.append(round_matches)
         return round_matches
 
+    def delete_last_round(self):
+        """Removes the last generated round (the Panic button)."""
+        if not self.rounds:
+            raise TournamentError("No rounds to delete.")
+            
+        self.rounds.pop()
+        self.current_round_num -= 1
+        self.recalculate_state()
+
     def generate_next_round_swiss(self) -> List[Match]:
         self.current_round_num += 1
         # Only pair players who are currently ACTIVE
@@ -194,14 +207,39 @@ class Tournament:
             return False
 
         if self.current_round_num == 1:
-            # Accelerated/Standard R1: Top vs Bottom
-            unpaired_indices = [i for i, val in enumerate(paired) if not val]
-            half = len(unpaired_indices) // 2
-            for i in range(half):
-                p1, p2 = players[unpaired_indices[i]], players[unpaired_indices[i+half]]
+            # R1 Seeding: Sort active players by rating
+            r1_players = sorted(players, key=lambda p: p.rating, reverse=True)
+            paired_indices = [False] * len(r1_players)
+            half = len(r1_players) // 2
+            
+            # If odd, handle bye for the *lowest rated* who hasn't had it
+            if len(r1_players) % 2 != 0:
+                # Find the lowest rated player who hasn't had a bye
+                bye_player_idx = -1
+                for i in range(len(r1_players) - 1, -1, -1):
+                    if not r1_players[i].bye_received:
+                        bye_player_idx = i
+                        break
+                
+                if bye_player_idx != -1:
+                    m = Match(r1_players[bye_player_idx], None, is_bye=True)
+                    matches.append(m)
+                    paired_indices[bye_player_idx] = True
+                else:
+                    # Fallback if everyone had a bye (shouldn't happen in R1, but for robustness)
+                    # Or if there are no players left to give a bye to
+                    pass # Or raise an error if this state is truly invalid
+                
+            # Pair: Top Half vs Bottom Half
+            # Filter out players who received a bye
+            unpaired_r1_players = [p for i, p in enumerate(r1_players) if not paired_indices[i]]
+            
+            half_unpaired = len(unpaired_r1_players) // 2
+            for i in range(half_unpaired):
+                p1, p2 = unpaired_r1_players[i], unpaired_r1_players[i + half_unpaired]
+                # Color alternate
                 m = Match(p1, p2) if i % 2 == 0 else Match(p2, p1)
                 matches.append(m)
-                paired[unpaired_indices[i]] = paired[unpaired_indices[i+half]] = True
         else:
             if not backtrack(0):
                 # Desperation: Pair greedily ignore rematches if absolutely necessary
@@ -215,6 +253,16 @@ class Tournament:
         
         self.rounds.append(matches)
         return matches
+
+    def create_snapshot(self, base_filename: str):
+        """Creates a timestamped and round-based backup file."""
+        # Strip extension if any
+        base = os.path.splitext(base_filename)[0]
+        round_num = len(self.rounds)
+        snapshot_name = f"{base}_r{round_num}_backup.json"
+        
+        self.save_to_file(snapshot_name)
+        print(f"Snapshot created: {snapshot_name}")
 
     def save_to_file(self, filename: str):
         data = {
@@ -261,8 +309,9 @@ class Tournament:
                 white = players_map.get(m_data["white_id"])
                 black = players_map.get(m_data["black_id"])
                 m = Match(white, black, m_data["is_bye"])
-                if m_data["result"]:
+                if m_data.get("result"):
                     m.result = Result(m_data["result"])
+                    m.timestamp = m_data.get("timestamp")
                 round_matches.append(m)
             t.rounds.append(round_matches)
             
@@ -313,3 +362,21 @@ class Tournament:
         with open(filename, 'w') as f:
             f.write(html)
         print(f"Standings exported to {filename}")
+    def swap_players(self, round_idx: int, p1: Player, p2: Player):
+        """Swaps two specific players within a round, regardless of board/side."""
+        if round_idx >= len(self.rounds): return
+        
+        match1, side1 = None, ""
+        match2, side2 = None, ""
+        
+        for m in self.rounds[round_idx]:
+            if m.white == p1: match1, side1 = m, "white"
+            elif m.black == p1: match1, side1 = m, "black"
+            
+            if m.white == p2: match2, side2 = m, "white"
+            elif m.black == p2: match2, side2 = m, "black"
+            
+        if match1 and match2:
+            setattr(match1, side1, p2)
+            setattr(match2, side2, p1)
+            self.recalculate_state()

@@ -217,7 +217,9 @@ def main():
             
         elif cmd in ('s', 'save'):
             t.save_to_file(save_file)
-            print_colored("Saved!", Colors.GREEN)
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            print_colored(f"✓ Saved at {timestamp}!", Colors.GREEN, bold=True)
 
         elif cmd in ('e', 'export'):
             t.export_csv("standings.csv")

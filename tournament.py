@@ -18,7 +18,15 @@ class TournamentType(Enum):
     ROUND_ROBIN = "Round Robin"
 
 class Tournament:
+    MAX_NAME_LENGTH = 50
+    MAX_SNAPSHOTS = 5
+    
     def __init__(self, name: str, players: List[Player], t_type: TournamentType = TournamentType.SWISS, total_rounds: Optional[int] = None):
+        if not name:
+            raise TournamentError("Tournament name cannot be empty.")
+        if len(name) > self.MAX_NAME_LENGTH:
+            raise TournamentError(f"Tournament name cannot exceed {self.MAX_NAME_LENGTH} characters.")
+        
         self.name = name
         self.players = players
         self.t_type = t_type
@@ -255,13 +263,31 @@ class Tournament:
         return matches
 
     def create_snapshot(self, base_filename: str):
-        """Creates a timestamped and round-based backup file."""
-        # Strip extension if any
+        """Creates a timestamped and round-based backup file with rotation."""
         base = os.path.splitext(base_filename)[0]
         round_num = len(self.rounds)
         snapshot_name = f"{base}_r{round_num}_backup.json"
         
         self.save_to_file(snapshot_name)
+        
+        # Rotate old snapshots - keep only last N
+        dir_path = os.path.dirname(base_filename) or "."
+        base_name = os.path.basename(base)
+        
+        old_snapshots = []
+        for f in os.listdir(dir_path):
+            if f.startswith(f"{base_name}_r") and f.endswith("_backup.json"):
+                old_snapshots.append(os.path.join(dir_path, f))
+        
+        # Sort by modification time, oldest first
+        old_snapshots.sort(key=lambda f: os.path.getmtime(f))
+        
+        # Remove oldest if exceeding max
+        while len(old_snapshots) >= self.MAX_SNAPSHOTS:
+            oldest = old_snapshots.pop(0)
+            os.remove(oldest)
+            logger.info(f"Removed old snapshot: {oldest}")
+        
         logger.info(f"Snapshot created: {snapshot_name}")
 
     def save_to_file(self, filename: str):

@@ -444,10 +444,22 @@ class DashboardView(QWidget):
 
     def export_standings(self):
         t = self.main_window.tournament
+        csv_file = "standings.csv"
+        html_file = "standings.html"
+        
+        # Check if files exist and ask for confirmation
+        files_exist = os.path.exists(csv_file) or os.path.exists(html_file)
+        if files_exist:
+            reply = QMessageBox.question(self, "Export", 
+                                         "This will overwrite existing files. Continue?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        
         try:
-            t.export_csv("standings.csv")
-            t.export_html("standings.html")
-            QMessageBox.information(self, "Success", "Exported standings to standings.csv and standings.html")
+            t.export_csv(csv_file)
+            t.export_html(html_file)
+            QMessageBox.information(self, "Success", f"Exported standings to {csv_file} and {html_file}")
         except Exception as e:
              QMessageBox.critical(self, "Error", f"Failed to export: {e}")
 
@@ -491,7 +503,7 @@ class DashboardView(QWidget):
         standings = self.main_window.tournament.get_standings()
         if 0 <= row < len(standings):
             p = standings[row]
-            rating, ok = QInputDialog.getInt(self, "Update Rating", f"Enter new rating for {p.name}:", p.rating, 0, 4000)
+            rating, ok = QInputDialog.getInt(self, "Update Rating", f"Enter new rating for {p.name}:", p.rating, 0, 3000)
             if ok:
                 p.rating = rating
                 self.main_window.tournament.recalculate_state() # Just in case R1 standings dependency
@@ -1063,8 +1075,9 @@ class WallChartView(QWidget):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 
                 # Visual hints for win/loss/draw
-                if "1" in match_info: item.setForeground(QApplication.palette().link())
-                elif "0" in match_info and "w" in match_info or "0" in match_info and "b" in match_info:
+                if "1" in match_info:
+                    item.setForeground(QApplication.palette().link())
+                elif ("0" in match_info and "w" in match_info) or ("0" in match_info and "b" in match_info):
                     item.setForeground(Qt.GlobalColor.red)
                     
                 self.table.setItem(i, 2 + r_idx, item)

@@ -1,10 +1,12 @@
 import os
+import sys
 
 from player import Player
 from tournament import Tournament, TournamentType
 from errors import TournamentError
 
 def clear_screen():
+    """Cross-platform screen clear."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def print_standings(t: Tournament):

@@ -2,6 +2,7 @@ import json
 import os
 import csv
 import math
+import logging
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
@@ -9,6 +10,8 @@ from enum import Enum
 from errors import TournamentError
 from player import Player
 from match import Match, Result
+
+logger = logging.getLogger(__name__)
 
 class TournamentType(Enum):
     SWISS = "Swiss"
@@ -107,7 +110,7 @@ class Tournament:
         else:
             return self.generate_next_round_round_robin()
 
-    def generate_communities_round_robin(self) -> List[List[Match]]:
+    def generate_all_rounds_round_robin(self) -> List[List[Match]]:
         """Pre-generates all RR rounds."""
         n = len(self.players)
         temp_players = self.players[:]
@@ -131,7 +134,7 @@ class Tournament:
 
     def generate_next_round_round_robin(self) -> List[Match]:
         if not hasattr(self, '_rr_schedule'):
-            self._rr_schedule = self.generate_communities_round_robin()
+            self._rr_schedule = self.generate_all_rounds_round_robin()
             
         if self.current_round_num >= len(self._rr_schedule):
             raise TournamentError("All Round Robin rounds completed.")
@@ -158,8 +161,8 @@ class Tournament:
         paired = [False] * len(players)
         matches = []
 
-        # 1. Handle BYE
-        if len(players) % 2 != 0:
+        # 1. Handle BYE (skip for R1 - it has its own logic)
+        if len(players) % 2 != 0 and self.current_round_num > 1:
             # Lowest player who hasn't had a bye
             for i in range(len(players)-1, -1, -1):
                 if not players[i].bye_received:
@@ -209,8 +212,6 @@ class Tournament:
         if self.current_round_num == 1:
             # R1 Seeding: Sort active players by rating
             r1_players = sorted(players, key=lambda p: p.rating, reverse=True)
-            paired_indices = [False] * len(r1_players)
-            half = len(r1_players) // 2
             
             # If odd, handle bye for the *lowest rated* who hasn't had it
             if len(r1_players) % 2 != 0:
@@ -224,15 +225,14 @@ class Tournament:
                 if bye_player_idx != -1:
                     m = Match(r1_players[bye_player_idx], None, is_bye=True)
                     matches.append(m)
-                    paired_indices[bye_player_idx] = True
+                    paired[bye_player_idx] = True
                 else:
                     # Fallback if everyone had a bye (shouldn't happen in R1, but for robustness)
-                    # Or if there are no players left to give a bye to
-                    pass # Or raise an error if this state is truly invalid
+                    pass
                 
             # Pair: Top Half vs Bottom Half
             # Filter out players who received a bye
-            unpaired_r1_players = [p for i, p in enumerate(r1_players) if not paired_indices[i]]
+            unpaired_r1_players = [p for i, p in enumerate(r1_players) if not paired[i]]
             
             half_unpaired = len(unpaired_r1_players) // 2
             for i in range(half_unpaired):
@@ -262,7 +262,7 @@ class Tournament:
         snapshot_name = f"{base}_r{round_num}_backup.json"
         
         self.save_to_file(snapshot_name)
-        print(f"Snapshot created: {snapshot_name}")
+        logger.info(f"Snapshot created: {snapshot_name}")
 
     def save_to_file(self, filename: str):
         data = {
@@ -324,7 +324,7 @@ class Tournament:
             writer.writerow(['Position', 'Name', 'Score', 'SB', 'BH'])
             for i, p in enumerate(standings, 1):
                 writer.writerow([i, p.name, p.score, f"{p.sonneborn_berger:.2f}", f"{p.buchholz:.2f}"])
-        print(f"Standings exported to {filename}")
+        logger.info(f"Standings exported to {filename}")
 
     def export_html(self, filename: str):
         standings = self.get_standings()
@@ -361,7 +361,7 @@ class Tournament:
         </html>"""
         with open(filename, 'w') as f:
             f.write(html)
-        print(f"Standings exported to {filename}")
+        logger.info(f"Standings exported to {filename}")
     def swap_players(self, round_idx: int, p1: Player, p2: Player):
         """Swaps two specific players within a round, regardless of board/side."""
         if round_idx >= len(self.rounds): return

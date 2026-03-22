@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict, Any
 from player import Player
 
 class Result(Enum):
@@ -9,14 +9,14 @@ class Result(Enum):
     BYE = "1-0 (BYE)"
 
 class Match:
-    def __init__(self, white: Optional[Player], black: Optional[Player], is_bye: bool = False):
-        self.white = white
-        self.black = black
-        self.is_bye = is_bye
+    def __init__(self, white: Optional[Player], black: Optional[Player], is_bye: bool = False) -> None:
+        self.white: Optional[Player] = white
+        self.black: Optional[Player] = black
+        self.is_bye: bool = is_bye
         self.result: Optional[Result] = None
-        self.timestamp: Optional[str] = None # When the result was set
+        self.timestamp: Optional[str] = None
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "white_id": self.white.id if self.white else None,
             "black_id": self.black.id if self.black else None,
@@ -25,7 +25,7 @@ class Match:
             "timestamp": self.timestamp
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.is_bye:
             p = self.white or self.black
             return f"{p.name} [BYE]"

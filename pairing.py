@@ -1,5 +1,6 @@
 from typing import List, Optional
-from models import Player, Match
+from player import Player
+from match import Match
 
 
 def assign_colors(p1: Player, p2: Player) -> Optional[Match]:
@@ -31,6 +32,7 @@ def generate_swiss_round(players: List[Player], round_num: int) -> List[Match]:
     paired = [False] * len(active)
     matches = []
 
+    # Bye handling for all rounds (including R1 when odd)
     if len(active) % 2 != 0:
         assigned = False
         for i in range(len(active) - 1, -1, -1):
@@ -68,13 +70,17 @@ def generate_swiss_round(players: List[Player], round_num: int) -> List[Match]:
         return False
 
     if round_num == 1:
-        unpaired_indices = [i for i, val in enumerate(paired) if not val]
-        half = len(unpaired_indices) // 2
+        # R1: Top half vs bottom half by rating
+        unpaired = [p for i, p in enumerate(active) if not paired[i]]
+        unpaired.sort(key=lambda p: p.rating, reverse=True)
+        half = len(unpaired) // 2
         for i in range(half):
-            p1, p2 = active[unpaired_indices[i]], active[unpaired_indices[i + half]]
+            p1, p2 = unpaired[i], unpaired[i + half]
             m = assign_colors(p1, p2) or Match(p1, p2)
             matches.append(m)
-            paired[unpaired_indices[i]] = paired[unpaired_indices[i + half]] = True
+            idx1 = active.index(p1)
+            idx2 = active.index(p2)
+            paired[idx1] = paired[idx2] = True
     else:
         if not backtrack(0):
             for i in range(len(active)):

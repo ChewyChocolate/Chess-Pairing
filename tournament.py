@@ -164,6 +164,8 @@ class Tournament:
         self.recalculate_state()
 
     def generate_next_round_swiss(self) -> List[Match]:
+        if self.current_round_num >= self.total_rounds:
+            raise TournamentError(f"All {self.total_rounds} Swiss rounds completed.")
         self.current_round_num += 1
         players = [p for p in self.get_standings() if p.active]
         matches = generate_swiss_round(players, self.current_round_num)

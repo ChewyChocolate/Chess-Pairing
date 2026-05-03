@@ -15,13 +15,14 @@ def assign_colors(p1: Player, p2: Player) -> Optional[Match]:
     diff1 = p1.color_history.count('W') - p1.color_history.count('B')
     diff2 = p2.color_history.count('W') - p2.color_history.count('B')
 
-    if not ww1 and not bb2 and diff1 <= diff2:
+    can_p1_white = not ww1 and not bb2
+    can_p2_white = not ww2 and not bb1
+
+    if can_p1_white and can_p2_white:
+        return Match(p1, p2) if diff1 <= diff2 else Match(p2, p1)
+    if can_p1_white:
         return Match(p1, p2)
-    elif not ww2 and not bb1:
-        return Match(p2, p1)
-    elif not ww1 and not bb2:
-        return Match(p1, p2)
-    elif not ww2 and not bb1:
+    if can_p2_white:
         return Match(p2, p1)
     return None
 

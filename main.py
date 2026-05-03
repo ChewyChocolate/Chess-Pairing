@@ -101,7 +101,7 @@ def main():
     
     t = None
     save_file = "tournament_data.json"
-    undo_stack = []  # For undo functionality
+    undo_stack: list = []  # Stack of matches to undo
     
     if os.path.exists(save_file):
         choice = input(f"Found existing data in {save_file}. Load it? (y/n): ").lower()
@@ -259,7 +259,7 @@ def main():
             if not undo_stack:
                 print_colored("Nothing to undo.", Colors.YELLOW)
             else:
-                last_match, last_result = undo_stack.pop()
+                last_match = undo_stack.pop()
                 last_match.result = None
                 t.recalculate_state()
                 t.save_to_file(save_file)
@@ -316,7 +316,7 @@ def main():
                                     match = selected_round[m_idx]
                                     if match.is_bye:
                                         t.record_match_result(match, "1-0 (BYE)")
-                                        undo_stack.append((match, "1-0 (BYE)"))
+                                        undo_stack.append(match)
                                         print_colored("Bye result set.", Colors.GREEN)
                                     else:
                                         print(f"\nEditing Board {board_num}: {match.white.name} vs {match.black.name}")
@@ -334,7 +334,7 @@ def main():
                                         elif res_input in shortcut_map:
                                             res = shortcut_map[res_input]
                                             t.record_match_result(match, res)
-                                            undo_stack.append((match, res))
+                                            undo_stack.append(match)
                                         else:
                                             print_colored("Invalid choice.", Colors.RED)
                                             continue
@@ -406,7 +406,7 @@ def main():
                             
                         if match.is_bye:
                             t.record_match_result(match, "1-0")
-                            undo_stack.append((match, "1-0"))
+                            undo_stack.append(match)
                             print_colored("Bye recorded.", Colors.GREEN)
                         else:
                             shortcut_map = {
@@ -427,7 +427,7 @@ def main():
                             res = shortcut_map.get(res_input, res_input)
                             if res:
                                 t.record_match_result(match, res)
-                                undo_stack.append((match, res))
+                                undo_stack.append(match)
                                 print_colored("Result saved!", Colors.GREEN)
                             else:
                                 print_colored("Invalid result.", Colors.RED)

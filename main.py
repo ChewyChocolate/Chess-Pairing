@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 
 # Color support
 if os.name == 'nt':
@@ -82,6 +83,8 @@ def print_help():
   {Colors.GREEN}a{Colors.RESET} - Add new player
   {Colors.GREEN}w{Colors.RESET} - Withdraw player
   {Colors.GREEN}u{Colors.RESET} - Undo last result
+  {Colors.GREEN}d{Colors.RESET} - Delete last round
+  {Colors.GREEN}z{Colors.RESET} - Create backup snapshot
   {Colors.GREEN}e{Colors.RESET} - Export CSV/HTML
   {Colors.GREEN}s{Colors.RESET} - Save tournament
   {Colors.GREEN}h{Colors.RESET} - Show this help
@@ -97,6 +100,7 @@ def confirm(prompt: str) -> bool:
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     print_colored("=== Chess Tournament Pairing System ===", Colors.CYAN, bold=True)
     
     t = None
@@ -165,7 +169,7 @@ def main():
         remaining = t.total_rounds - t.current_round_num
         print(f"Round {t.current_round_num} of {t.total_rounds} ({max(0, remaining)} remaining)")
         
-        cmds = ["n-ext", "r-ounds", "a-dd", "w-ithdraw", "u-ndo", "e-xport", "s-ave", "h-elp"]
+        cmds = ["n-ext", "r-ounds", "a-dd", "w-ithdraw", "u-ndo", "d-elete", "z-snapshot", "e-xport", "s-ave", "h-elp"]
         if t.current_round_num <= 1:
             cmds.append("f-ormat")
         cmds.append("q-uit")
@@ -266,6 +270,21 @@ def main():
                 print_colored("Undone last result.", Colors.GREEN)
             input("\nPress Enter...")
 
+        elif cmd in ('d', 'delete'):
+            if t.rounds and confirm(f"Delete round {t.current_round_num}?"):
+                try:
+                    t.delete_last_round()
+                    t.save_to_file(save_file)
+                    print_colored("Round deleted.", Colors.GREEN)
+                except TournamentError as e:
+                    print_colored(f"Error: {e}", Colors.RED)
+            input("\nPress Enter...")
+
+        elif cmd in ('z', 'snapshot'):
+            t.create_snapshot(save_file)
+            print_colored("Snapshot created.", Colors.GREEN)
+            input("\nPress Enter...")
+
         elif cmd in ('r', 'rounds'):
             if not t.rounds:
                 print_colored("No rounds have been generated yet.", Colors.YELLOW)
@@ -299,9 +318,11 @@ def main():
                                 if m.result:
                                     res_color = Colors.GREEN if m.result.value == "1-0" else Colors.RED if m.result.value == "0-1" else Colors.YELLOW
                                     res_str = f"[{res_color}{m.result.value}{Colors.RESET}]"
+                                    ts = f" {Colors.GRAY}{m.timestamp}{Colors.RESET}" if m.timestamp else ""
                                 else:
                                     res_str = f"[{Colors.YELLOW}PENDING{Colors.RESET}]"
-                                print(f"  Board {b_idx}: {m} {res_str}")
+                                    ts = ""
+                                print(f"  Board {b_idx}: {m} {res_str}{ts}")
                             
                             print(f"\n[{Colors.BOLD}b{Colors.RESET}] Back to round selection")
                             
@@ -319,7 +340,9 @@ def main():
                                         undo_stack.append(match)
                                         print_colored("Bye result set.", Colors.GREEN)
                                     else:
-                                        print(f"\nEditing Board {board_num}: {match.white.name} vs {match.black.name}")
+                                        has_result = match.result is not None
+                                        prefix = " [Overwrite]" if has_result else ""
+                                        print(f"\nEditing Board {board_num}: {match.white.name} vs {match.black.name}{prefix}")
                                         print(f"  {Colors.GREEN}[1]{Colors.RESET} 1-0 (White wins)")
                                         print(f"  {Colors.RED}[2]{Colors.RESET} 0-1 (Black wins)")
                                         print(f"  {Colors.YELLOW}[3]{Colors.RESET} 1/2-1/2 (Draw)")
@@ -333,6 +356,9 @@ def main():
                                             t.recalculate_state()
                                         elif res_input in shortcut_map:
                                             res = shortcut_map[res_input]
+                                            if has_result:
+                                                match.result = None
+                                                t.recalculate_state()
                                             t.record_match_result(match, res)
                                             undo_stack.append(match)
                                         else:

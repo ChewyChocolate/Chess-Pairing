@@ -48,7 +48,14 @@ def generate_swiss_round(players: List[Player], round_num: int) -> List[Match]:
             matches.append(m)
             paired[-1] = True
 
+    _attempts = 0
+    MAX_ATTEMPTS = 5000
+
     def backtrack(idx):
+        nonlocal _attempts
+        _attempts += 1
+        if _attempts > MAX_ATTEMPTS:
+            return False
         if idx >= len(active):
             return True
         if paired[idx]:

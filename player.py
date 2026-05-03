@@ -5,7 +5,7 @@ from errors import TournamentError
 class Player:
     MAX_NAME_LENGTH = 50
     
-    def __init__(self, name: str, rating: int = 1200) -> None:
+    def __init__(self, name: str) -> None:
         if not name:
             raise TournamentError("Player name cannot be empty.")
         if len(name) > self.MAX_NAME_LENGTH:
@@ -13,9 +13,7 @@ class Player:
         
         self.id: str = str(uuid.uuid4())[:8]
         self.name: str = name
-        self._rating: int = rating
-        self.initial_rating: int = rating
-        self.rating_change: float = 0.0
+        self._rating: int = 1200
         self.score: float = 0.0
         self.opponents: List['Player'] = []
         self.match_results: List[float] = []
@@ -52,8 +50,6 @@ class Player:
             "id": self.id,
             "name": self.name,
             "rating": self.rating,
-            "initial_rating": self.initial_rating,
-            "rating_change": self.rating_change,
             "score": self.score,
             "opponent_ids": [opp.id for opp in self.opponents],
             "match_results": self.match_results,
@@ -64,10 +60,9 @@ class Player:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Player':
-        p = cls(data["name"], data.get("rating", 1200))
+        p = cls(data["name"])
         p.id = data["id"]
-        p.initial_rating = data.get("initial_rating", p._rating)
-        p.rating_change = data.get("rating_change", 0.0)
+        p._rating = data.get("rating", 1200)
         p.score = data["score"]
         p.match_results = data.get("match_results", [])
         p.color_history = data["color_history"]

@@ -47,9 +47,9 @@ def print_standings(t: Tournament):
     width = get_standings_width(t)
     
     # Header
-    header = f"\n{'Pos':<4} {'Name':<{width}} {'Score':<6} {'SB':<6} {'BH':<6} {'Elo':<7}"
+    header = f"\n{'Pos':<4} {'Name':<{width}} {'Score':<6} {'SB':<6} {'BH':<6}"
     print_colored(header, Colors.CYAN, bold=True)
-    print(Colors.GRAY + "-" * (width + 38) + Colors.RESET)
+    print(Colors.GRAY + "-" * (width + 30) + Colors.RESET)
     
     standings = t.get_standings()
     for i, p in enumerate(standings, 1):
@@ -63,17 +63,14 @@ def print_standings(t: Tournament):
         else:
             pos_color = ""
         
-        elo_color = Colors.GREEN if p.rating_change > 0 else Colors.RED if p.rating_change < 0 else ""
-        elo_str = f"{elo_color}{p.rating_change:+.1f}{Colors.RESET}" if elo_color else f"{p.rating_change:+.1f}"
-        
         # Build display name (without color codes for alignment)
         display_name = p.name if p.active else f"{p.name} (Withdrawn)"
         
         if not p.active:
-            print_colored(f"{i:<4} {display_name:<{width}} {p.score:<6.1f} {p.sonneborn_berger:<6.2f} {p.buchholz:<6.1f} {elo_str}", Colors.GRAY)
+            print_colored(f"{i:<4} {display_name:<{width}} {p.score:<6.1f} {p.sonneborn_berger:<6.2f} {p.buchholz:<6.1f}", Colors.GRAY)
         else:
             print_colored(f"{i:<4}", pos_color, bold=True, end="")
-            print(f" {display_name:<{width}} {p.score:<6.1f} {p.sonneborn_berger:<6.2f} {p.buchholz:<6.1f} {elo_str}")
+            print(f" {display_name:<{width}} {p.score:<6.1f} {p.sonneborn_berger:<6.2f} {p.buchholz:<6.1f}")
 
 
 def print_help():

@@ -21,10 +21,9 @@ class TournamentType(Enum):
 class Tournament:
     MAX_NAME_LENGTH = 50
     MAX_SNAPSHOTS = 5
-    DEFAULT_K = 32
     
     def __init__(self, name: str, players: List[Player], t_type: TournamentType = TournamentType.SWISS,
-                 total_rounds: Optional[int] = None, k: int = DEFAULT_K):
+                 total_rounds: Optional[int] = None):
         if not name:
             raise TournamentError("Tournament name cannot be empty.")
         if len(name) > self.MAX_NAME_LENGTH:
@@ -36,7 +35,6 @@ class Tournament:
         self.rounds: List[List[Match]] = []
         self.current_round_num = 0
         self._total_rounds = total_rounds
-        self.k = k
 
     def add_player(self, player: Player):
         self.players.append(player)
@@ -89,8 +87,6 @@ class Tournament:
             p.match_results = []
             p.color_history = []
             p.bye_received = False
-            p._rating = p.initial_rating
-            p.rating_change = 0.0
 
         for rnd in self.rounds:
             for match in rnd:
@@ -117,15 +113,6 @@ class Tournament:
                         match.black.match_results.append(b_pts)
                         match.white.color_history.append(w_col)
                         match.black.color_history.append(b_col)
-
-                        expected_w = 1 / (1 + 10 ** ((match.black._rating - match.white._rating) / 400))
-                        expected_b = 1 - expected_w
-                        diff_w = self.k * (w_pts - expected_w)
-                        diff_b = self.k * (b_pts - expected_b)
-                        match.white._rating += diff_w
-                        match.black._rating += diff_b
-                        match.white.rating_change += diff_w
-                        match.black.rating_change += diff_b
 
     def generate_next_round(self) -> List[Match]:
         if self.t_type == TournamentType.SWISS:
@@ -217,7 +204,6 @@ class Tournament:
             "type": self.t_type.value,
             "current_round_num": self.current_round_num,
             "total_rounds": self._total_rounds,
-            "k": self.k,
             "players": [p.to_dict() for p in self.players],
             "rounds": [[m.to_dict() for m in r] for r in self.rounds]
         }
@@ -247,8 +233,7 @@ class Tournament:
             
         t_type = TournamentType(data.get("type", "Swiss"))
         total_rounds = data.get("total_rounds")
-        k = data.get("k", cls.DEFAULT_K)
-        t = cls(data["name"], players_list, t_type, total_rounds=total_rounds, k=k)
+        t = cls(data["name"], players_list, t_type, total_rounds=total_rounds)
         t.current_round_num = data["current_round_num"]
         
         # 3. Recreate rounds and matches
@@ -270,17 +255,16 @@ class Tournament:
         standings = self.get_standings()
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(['Position', 'Name', 'Score', 'SB', 'BH', 'Rating', 'Elo'])
+            writer.writerow(['Position', 'Name', 'Score', 'SB', 'BH'])
             for i, p in enumerate(standings, 1):
                 writer.writerow([i, p.name, p.score, f"{p.sonneborn_berger:.2f}",
-                                 f"{p.buchholz:.2f}", p.rating, f"{p.rating_change:+.1f}"])
+                                 f"{p.buchholz:.2f}"])
         logger.info(f"Standings exported to {filename}")
 
     def export_html(self, filename: str):
         standings = self.get_standings()
         rows = ""
         for i, p in enumerate(standings, 1):
-            elo_color = "#4ade80" if p.rating_change > 0 else "#f87171" if p.rating_change < 0 else "inherit"
             rows += f"""
             <tr>
                 <td>{i}</td>
@@ -288,8 +272,6 @@ class Tournament:
                 <td>{p.score:.1f}</td>
                 <td>{p.sonneborn_berger:.2f}</td>
                 <td>{p.buchholz:.1f}</td>
-                <td>{p.rating}</td>
-                <td style="color: {elo_color};">{p.rating_change:+.1f}</td>
             </tr>"""
             
         html = f"""
@@ -307,7 +289,7 @@ class Tournament:
             <h1>{self.name} - Standings</h1>
             <p>Type: {self.t_type.value} | Rounds: {self.current_round_num}/{self.total_rounds}</p>
             <table>
-                <thead><tr><th>#</th><th>Player</th><th>Score</th><th>SB</th><th>BH</th><th>Rating</th><th>Elo Δ</th></tr></thead>
+                <thead><tr><th>#</th><th>Player</th><th>Score</th><th>SB</th><th>BH</th></tr></thead>
                 <tbody>{rows}</tbody>
             </table>
         </body>

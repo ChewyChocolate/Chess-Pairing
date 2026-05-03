@@ -15,7 +15,6 @@ class TestPlayer(unittest.TestCase):
     def test_create_player(self):
         p = Player("Test Player")
         self.assertEqual(p.name, "Test Player")
-        self.assertEqual(p.rating, 1200)
         self.assertEqual(p.score, 0.0)
         self.assertTrue(p.active)
     
@@ -27,17 +26,6 @@ class TestPlayer(unittest.TestCase):
         long_name = "A" * 51
         with self.assertRaises(TournamentError):
             Player(long_name)
-    
-    def test_rating_validation(self):
-        p = Player("Test")
-        p.rating = 1500
-        self.assertEqual(p.rating, 1500)
-        
-        with self.assertRaises(TournamentError):
-            p.rating = -1
-        
-        with self.assertRaises(TournamentError):
-            p.rating = 3001
     
     def test_tiebreak_calculation(self):
         p1 = Player("Player1")
@@ -58,17 +46,15 @@ class TestPlayer(unittest.TestCase):
     
     def test_serialization(self):
         p = Player("Test")
-        p.rating = 1800
         p.score = 3.5
         
         data = p.to_dict()
         self.assertEqual(data["name"], "Test")
-        self.assertEqual(data["rating"], 1800)
         
         # Test deserialization
         p2 = Player.from_dict(data)
         self.assertEqual(p2.name, "Test")
-        self.assertEqual(p2.rating, 1800)
+        self.assertEqual(p2.score, 3.5)
 
 
 class TestMatch(unittest.TestCase):
@@ -109,8 +95,6 @@ class TestTournament(unittest.TestCase):
     def setUp(self):
         """Create test players and tournament."""
         self.players = [Player(f"Player{i}") for i in range(4)]
-        for i, p in enumerate(self.players):
-            p.rating = 2000 - (i * 100)  # Different ratings
     
     def test_create_tournament(self):
         t = Tournament("Test", self.players, TournamentType.SWISS)

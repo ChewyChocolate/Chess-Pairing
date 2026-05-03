@@ -60,7 +60,7 @@ class Tournament:
         for p in self.players:
             p.update_tiebreaks()
         return sorted(self.players, 
-                      key=lambda p: (p.score, p.sonneborn_berger, p.buchholz, p.rating), 
+                      key=lambda p: (p.score, p.sonneborn_berger, p.buchholz), 
                       reverse=True)
 
     def record_match_result(self, match: Match, result_code: str):

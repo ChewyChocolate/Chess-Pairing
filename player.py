@@ -13,7 +13,6 @@ class Player:
         
         self.id: str = str(uuid.uuid4())[:8]
         self.name: str = name
-        self._rating: int = 1200
         self.score: float = 0.0
         self.opponents: List['Player'] = []
         self.match_results: List[float] = []
@@ -49,7 +48,6 @@ class Player:
         return {
             "id": self.id,
             "name": self.name,
-            "rating": self.rating,
             "score": self.score,
             "opponent_ids": [opp.id for opp in self.opponents],
             "match_results": self.match_results,
@@ -62,7 +60,6 @@ class Player:
     def from_dict(cls, data: Dict[str, Any]) -> 'Player':
         p = cls(data["name"])
         p.id = data["id"]
-        p._rating = data.get("rating", 1200)
         p.score = data["score"]
         p.match_results = data.get("match_results", [])
         p.color_history = data["color_history"]

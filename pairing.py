@@ -71,9 +71,8 @@ def generate_swiss_round(players: List[Player], round_num: int) -> List[Match]:
         return False
 
     if round_num == 1:
-        # R1: Top half vs bottom half by rating
+        # R1: Top half vs bottom half by registration order
         unpaired = [p for i, p in enumerate(active) if not paired[i]]
-        unpaired.sort(key=lambda p: p.rating, reverse=True)
         half = len(unpaired) // 2
         for i in range(half):
             p1, p2 = unpaired[i], unpaired[i + half]

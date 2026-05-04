@@ -255,6 +255,11 @@ class FileInputDialog(ModalScreen):
 
 
 class RoundReviewScreen(Screen):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Back"),
+        Binding("b", "dismiss", "Back"),
+    ]
+
     def __init__(self, tournament):
         super().__init__()
         self.tournament = tournament
@@ -267,6 +272,7 @@ class RoundReviewScreen(Screen):
             with Vertical(classes="panel"):
                 yield Static("Boards", classes="panel-title")
                 yield DataTable(id="detail-table")
+        yield Footer()
 
     def on_mount(self):
         t = self.query_one("#rounds-table", DataTable)
@@ -279,6 +285,9 @@ class RoundReviewScreen(Screen):
             else:
                 status = "Pending"
             t.add_row(f"Round {i}", status)
+
+    def action_dismiss(self):
+        self.dismiss()
 
     def on_data_table_row_selected(self, event):
         if event.row_key is None:

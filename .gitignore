@@ -1,6 +1,9 @@
 *.json
 *.log
 *_backup.json
+*.csv
+*.html
+*.txt
 __pycache__/
 *.pyc
 .pytest_cache/

@@ -22,7 +22,7 @@ CSS = """
 Screen {
     layout: grid;
     grid-size: 2;
-    grid-rows: auto 1fr auto;
+    grid-rows: 1fr auto;
     grid-gutter: 1;
     padding: 0 1;
 }

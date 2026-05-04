@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Button, DataTable, Input, Label, ListItem, ListView, Static, TextArea
+from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static, TextArea
 from textual.widgets.data_table import RowDoesNotExist
 
 from player import Player
@@ -22,13 +22,14 @@ CSS = """
 Screen {
     layout: grid;
     grid-size: 2;
+    grid-rows: auto 1fr auto;
     grid-gutter: 1;
     padding: 0 1;
 }
-.panel { border: solid $primary 30%; height: 100%; }
+.panel { border: solid $primary 30%; }
 .panel-title { text-align: center; background: $surface; text-style: bold; padding: 0 1; height: 1; }
 DataTable { height: 1fr; }
-#status-bar { column-span: 2; height: 1; background: $boost; text-align: center; }
+Footer { column-span: 2; }
 
 #setup-center { align: center middle; width: 60; }
 #setup-center > * { margin: 0 1; }
@@ -71,15 +72,17 @@ class WithdrawDialog(ModalScreen):
 
     def compose(self):
         yield Static("Select player to withdraw:")
-        lv = ListView(*[ListItem(Label(p.name)) for p in self.players if p.active])
-        lv.id = "player-list"
-        yield lv
+        items = []
+        for p in self.players:
+            if p.active:
+                item = ListItem(Label(p.name))
+                item._player = p
+                items.append(item)
+        yield ListView(*items, id="player-list")
         yield Button("Cancel", variant="default", id="cancel")
 
     def on_list_view_selected(self, event):
-        name = str(event.item.children[0].label)
-        player = next(p for p in self.players if p.name == name)
-        self.dismiss(player)
+        self.dismiss(event.item._player)
 
     def on_button_pressed(self, event):
         if event.button.id == "cancel":
@@ -160,6 +163,15 @@ class ConfirmDialog(ModalScreen):
     def on_button_pressed(self, event):
         self.dismiss(event.button.id == "yes")
 
+    def key_y(self):
+        self.dismiss(True)
+
+    def key_n(self):
+        self.dismiss(False)
+
+    def key_escape(self):
+        self.dismiss(False)
+
 
 class RoundReviewScreen(Screen):
     def __init__(self, tournament):
@@ -211,12 +223,10 @@ class ChessApp(App):
     CSS = CSS
 
     BINDINGS = [
-        Binding("n", "next_or_cancel", "Next"),
-        Binding("a", "add_player", "Add"),
-        Binding("w", "withdraw", "Withdraw"),
+        Binding("n", "next_or_cancel", "Next round"),
+        Binding("a", "add_player", "Add player"),
         Binding("u", "undo", "Undo"),
-        Binding("d", "delete_round", "Delete"),
-        Binding("z", "snapshot", "Snap"),
+        Binding("z", "snapshot", "Snapshot"),
         Binding("e", "export", "Export"),
         Binding("s", "save", "Save"),
         Binding("r", "review", "Review"),
@@ -236,7 +246,7 @@ class ChessApp(App):
         with Vertical(classes="panel", id="round-panel"):
             yield Static("Round 0", classes="panel-title", id="round-title")
             yield DataTable(id="boards-table", cursor_type="row")
-        yield Static(id="status-bar")
+        yield Footer()
 
     def on_mount(self):
         if os.path.exists(SAVE_FILE):
@@ -264,10 +274,6 @@ class ChessApp(App):
         bt.clear(columns=True)
         bt.add_columns("#", "White", "Black", "Result")
         self._redraw()
-        self._status("Press N for next round | A=Add W=Withdraw U=Undo")
-
-    def _status(self, msg):
-        self.query_one("#status-bar", Static).update(msg)
 
     def _redraw(self):
         if not self.tournament:
@@ -282,7 +288,11 @@ class ChessApp(App):
         bt.clear()
         if self.tournament.rounds:
             rnd = self.tournament.rounds[-1]
-            self.query_one("#round-title", Static).update(f"Round {self.tournament.current_round_num}")
+            pending = sum(1 for m in rnd if not m.is_bye and m.result is None)
+            title = f"Round {self.tournament.current_round_num}"
+            if pending and self.result_mode:
+                title += f" [{pending} pending]"
+            self.query_one("#round-title", Static).update(title)
             for i, m in enumerate(rnd, 1):
                 if m.is_bye:
                     bt.add_row(str(i), (m.white or m.black).name, "[BYE]", m.result.value if m.result else "AUTO")
@@ -290,10 +300,17 @@ class ChessApp(App):
                     bt.add_row(str(i), m.white.name, m.black.name, m.result.value if m.result else "PENDING")
         else:
             self.query_one("#round-title", Static).update("Round 0")
-        try:
-            bt.move_cursor(row=0, column=0)
-        except RowDoesNotExist:
-            pass
+        if self.result_mode and self.tournament and self.tournament.rounds:
+            rnd = self.tournament.rounds[-1]
+            for i, m in enumerate(rnd):
+                if not m.is_bye and m.result is None:
+                    self._focus(i + 1)
+                    break
+        else:
+            try:
+                bt.move_cursor(row=0, column=0)
+            except RowDoesNotExist:
+                pass
 
     def _record(self, code):
         if not self.result_mode or not self.tournament:
@@ -306,7 +323,7 @@ class ChessApp(App):
         except Exception:
             return
         if data[3] != "PENDING":
-            self._status(f"Row {data[0]} is not pending")
+            self.notify(f"Row {data[0]} is not pending")
             return
         rnd = self.tournament.rounds[-1]
         match = rnd[int(data[0]) - 1]
@@ -324,12 +341,12 @@ class ChessApp(App):
                     if not m.is_bye and m.result is None:
                         self._focus(i + 1)
                         break
-                self._status(f"Recorded. {len(pending)} pending")
+                self.notify(f"Recorded. {len(pending)} pending")
             else:
                 self.result_mode = False
-                self._status("Round complete! Press N for next")
+                self.notify("Round complete! Press N for next")
         except TournamentError as e:
-            self._status(str(e))
+            self.notify(str(e))
 
     def _focus(self, board_num):
         bt = self.query_one("#boards-table", DataTable)
@@ -345,7 +362,10 @@ class ChessApp(App):
     def key_1(self):
         self._record("1-0")
     def key_w(self):
-        self._record("1-0")
+        if self.result_mode:
+            self._record("1-0")
+        else:
+            self.action_withdraw()
     def key_2(self):
         self._record("0-1")
     def key_b(self):
@@ -353,13 +373,16 @@ class ChessApp(App):
     def key_3(self):
         self._record("1/2-1/2")
     def key_d(self):
-        self._record("1/2-1/2")
+        if self.result_mode:
+            self._record("1/2-1/2")
+        else:
+            self.action_delete_round()
     def key_h(self):
         self._record("1/2-1/2")
     def key_escape(self):
         if self.result_mode:
             self.result_mode = False
-            self._status("Cancelled")
+            self.notify("Cancelled")
         self.query_one("#boards-table", DataTable).focus()
 
     def action_next_or_cancel(self):
@@ -367,7 +390,7 @@ class ChessApp(App):
             return
         if self.result_mode:
             self.result_mode = False
-            self._status("Cancelled")
+            self.notify("Cancelled")
             return
         if self.tournament.rounds and any(
             m.result is None for m in self.tournament.rounds[-1]
@@ -380,7 +403,7 @@ class ChessApp(App):
                 if not m.is_bye and m.result is None:
                     self._focus(i + 1)
                     break
-            self._status(f"Enter results | {len(pending)} pending | 1=W 2=B 3=D | Esc=cancel")
+            self.notify(f"Enter results | {len(pending)} pending | 1=W 2=B 3=D | Esc=cancel")
             return
         try:
             pairings = self.tournament.generate_next_round()
@@ -400,11 +423,11 @@ class ChessApp(App):
                     if not m.is_bye and m.result is None:
                         self._focus(i + 1)
                         break
-                self._status(f"Enter results | {len(pending)} pending | 1=W 2=B 3=D | Esc=cancel")
+                self.notify(f"Enter results | {len(pending)} pending | 1=W 2=B 3=D | Esc=cancel")
             else:
-                self._status("Round generated (all byes)")
+                self.notify("Round generated (all byes)")
         except TournamentError as e:
-            self._status(str(e))
+            self.notify(str(e))
 
     def action_add_player(self):
         if not self.tournament:
@@ -415,9 +438,9 @@ class ChessApp(App):
                     self.tournament.add_player(Player(name))
                     self.tournament.save_to_file(SAVE_FILE)
                     self._redraw()
-                    self._status(f"Added {name}")
+                    self.notify(f"Added {name}")
                 except TournamentError as e:
-                    self._status(str(e))
+                    self.notify(str(e))
         self.push_screen(AddPlayerDialog(), cb)
 
     def action_withdraw(self):
@@ -428,37 +451,46 @@ class ChessApp(App):
                 player.active = False
                 self.tournament.save_to_file(SAVE_FILE)
                 self._redraw()
-                self._status(f"Withdrew {player.name}")
+                self.notify(f"Withdrew {player.name}")
         self.push_screen(WithdrawDialog(self.tournament.players), cb)
 
     def action_undo(self):
         if not self.undo_stack or not self.tournament:
-            self._status("Nothing to undo")
+            self.notify("Nothing to undo")
             return
         m = self.undo_stack.pop()
         m.result = None
         self.tournament.recalculate_state()
         self.tournament.save_to_file(SAVE_FILE)
         self._redraw()
-        self._status("Undone")
+        if self.tournament.rounds:
+            rnd = self.tournament.rounds[-1]
+            pending = [ma for ma in rnd if not ma.is_bye and ma.result is None]
+            if pending:
+                self.result_mode = True
+                for i, ma in enumerate(rnd):
+                    if not ma.is_bye and ma.result is None:
+                        self._focus(i + 1)
+                        break
+        self.notify("Undone")
 
     def action_delete_round(self):
         if not self.tournament or not self.tournament.rounds:
-            self._status("No rounds to delete")
+            self.notify("No rounds to delete")
             return
         def cb(confirmed):
             if confirmed:
                 self.tournament.delete_last_round()
                 self.tournament.save_to_file(SAVE_FILE)
                 self._redraw()
-                self._status("Round deleted")
+                self.notify("Round deleted")
         self.push_screen(ConfirmDialog("Delete last round?"), cb)
 
     def action_snapshot(self):
         if not self.tournament:
             return
         self.tournament.create_snapshot(SAVE_FILE)
-        self._status("Snapshot created")
+        self.notify("Snapshot created")
 
     def action_export(self):
         if not self.tournament:
@@ -466,19 +498,19 @@ class ChessApp(App):
         try:
             self.tournament.export_csv(CSV_FILE)
             self.tournament.export_html(HTML_FILE)
-            self._status("Exported")
+            self.notify("Exported")
         except Exception as e:
-            self._status(f"Export failed: {e}")
+            self.notify(f"Export failed: {e}")
 
     def action_save(self):
         if not self.tournament:
             return
         self.tournament.save_to_file(SAVE_FILE)
-        self._status(f"Saved at {datetime.now().strftime('%H:%M')}")
+        self.notify(f"Saved at {datetime.now().strftime('%H:%M')}")
 
     def action_review(self):
         if not self.tournament or not self.tournament.rounds:
-            self._status("No rounds yet")
+            self.notify("No rounds yet")
             return
         self.push_screen(RoundReviewScreen(self.tournament))
 

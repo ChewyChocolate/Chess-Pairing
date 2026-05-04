@@ -35,9 +35,9 @@ Footer { column-span: 2; }
 #setup-center > * { margin: 0 1; }
 #player-input { height: 10; }
 Button { color: $text; }
-Button#swiss { background: $primary; color: $text; }
-Button#rr { background: $accent; color: $text; }
-Button#cancel { background: $error; color: $text; }
+Button#swiss { background: #2563eb 80%; color: "#ffffff"; }
+Button#rr { background: #7c3aed 80%; color: "#ffffff"; }
+Button#cancel { background: $error 80%; color: "#ffffff"; }
 Button:hover { text-style: bold; }
 """
 
@@ -256,7 +256,9 @@ class ChessApp(App):
     def on_mount(self):
         if os.path.exists(SAVE_FILE):
             try:
-                self.tournament = Tournament.load_from_file(SAVE_FILE)
+                t = Tournament.load_from_file(SAVE_FILE)
+                if t and len(t.players) >= 2:
+                    self.tournament = t
             except Exception:
                 pass
         if self.tournament:

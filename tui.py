@@ -35,9 +35,9 @@ Footer { column-span: 2; }
 #setup-center > * { margin: 0 1; }
 #player-input { height: 10; }
 Button { color: $text; }
-Button#swiss { background: #2563eb 80%; color: "#ffffff"; }
-Button#rr { background: #7c3aed 80%; color: "#ffffff"; }
-Button#cancel { background: $error 80%; color: "#ffffff"; }
+Button#swiss { background: #2563eb 80%; color: #ffffff; }
+Button#rr { background: #7c3aed 80%; color: #ffffff; }
+Button#cancel { background: $error 80%; color: #ffffff; }
 Button:hover { text-style: bold; }
 """
 

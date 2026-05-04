@@ -317,6 +317,7 @@ class ChessApp(App):
         Binding("a", "add_player", "Add player"),
         Binding("i", "import_players", "Import players"),
         Binding("p", "export_players_list", "Export players"),
+        Binding("l", "toggle_lock", "Lock/Unlock"),
         Binding("u", "undo", "Undo"),
         Binding("z", "snapshot", "Snapshot"),
         Binding("e", "export", "Export"),
@@ -384,6 +385,8 @@ class ChessApp(App):
             rnd = self.tournament.rounds[-1]
             pending = sum(1 for m in rnd if not m.is_bye and m.result is None)
             title = f"Round {self.tournament.current_round_num}"
+            if self.tournament.is_round_locked(len(self.tournament.rounds) - 1):
+                title += " [LOCKED]"
             if pending and self.result_mode:
                 title += f" [{pending} pending]"
             self.query_one("#round-title", Static).update(title)
@@ -419,6 +422,9 @@ class ChessApp(App):
             return
         if data[3] != "PENDING":
             self.notify(f"Row {data[0]} is not pending")
+            return
+        if self.tournament.rounds and self.tournament.is_round_locked(len(self.tournament.rounds) - 1):
+            self.notify("Round is locked — unlock with L first", severity="error")
             return
         rnd = self.tournament.rounds[-1]
         match = rnd[int(data[0]) - 1]
@@ -594,6 +600,9 @@ class ChessApp(App):
         if not self.undo_stack or not self.tournament:
             self.notify("Nothing to undo")
             return
+        if self.tournament.rounds and self.tournament.is_round_locked(len(self.tournament.rounds) - 1):
+            self.notify("Round is locked — unlock with L first", severity="error")
+            return
         m = self.undo_stack.pop()
         m.result = None
         self.tournament.recalculate_state()
@@ -621,6 +630,17 @@ class ChessApp(App):
                 self._redraw()
                 self.notify("Round deleted")
         self.push_screen(ConfirmDialog("Delete last round?"), cb)
+
+    def action_toggle_lock(self):
+        if not self.tournament or not self.tournament.rounds:
+            self.notify("No rounds to lock")
+            return
+        idx = len(self.tournament.rounds) - 1
+        self.tournament.toggle_round_lock(idx)
+        self.tournament.save_to_file(SAVE_FILE)
+        self._redraw()
+        state = "locked" if self.tournament.is_round_locked(idx) else "unlocked"
+        self.notify(f"Round {self.tournament.current_round_num} {state}")
 
     def action_snapshot(self):
         if not self.tournament:

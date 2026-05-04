@@ -4,7 +4,7 @@ import csv
 import math
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Set
 from enum import Enum
 
 from errors import TournamentError
@@ -35,11 +35,21 @@ class Tournament:
         self.rounds: List[List[Match]] = []
         self.current_round_num = 0
         self._total_rounds = total_rounds
+        self.locked_rounds: Set[int] = set()
 
     def add_player(self, player: Player):
         self.players.append(player)
         if hasattr(self, '_rr_schedule'):
             delattr(self, '_rr_schedule')
+
+    def is_round_locked(self, round_idx: int) -> bool:
+        return round_idx in self.locked_rounds
+
+    def toggle_round_lock(self, round_idx: int):
+        if round_idx in self.locked_rounds:
+            self.locked_rounds.discard(round_idx)
+        else:
+            self.locked_rounds.add(round_idx)
 
     @property
     def total_rounds(self) -> int:
@@ -206,6 +216,7 @@ class Tournament:
             "type": self.t_type.value,
             "current_round_num": self.current_round_num,
             "total_rounds": self._total_rounds,
+            "locked_rounds": list(self.locked_rounds),
             "players": [p.to_dict() for p in self.players],
             "rounds": [[m.to_dict() for m in r] for r in self.rounds]
         }
@@ -237,6 +248,7 @@ class Tournament:
         total_rounds = data.get("total_rounds")
         t = cls(data["name"], players_list, t_type, total_rounds=total_rounds)
         t.current_round_num = data["current_round_num"]
+        t.locked_rounds = set(data.get("locked_rounds", []))
         
         # 3. Recreate rounds and matches
         for r_data in data["rounds"]:

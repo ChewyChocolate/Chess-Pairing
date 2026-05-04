@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static, TextArea
+from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, RadioButton, RadioSet, Static, TextArea
 from textual.widgets.data_table import RowDoesNotExist
 
 from player import Player
@@ -34,11 +34,6 @@ Footer { column-span: 2; }
 #setup-center { align: center middle; width: 60; }
 #setup-center > * { margin: 0 1; }
 #player-input { height: 10; }
-Button { color: $text; }
-Button#swiss { background: #2563eb 80%; color: #ffffff; }
-Button#rr { background: #7c3aed 80%; color: #ffffff; }
-Button#cancel { background: $error 80%; color: #ffffff; }
-Button:hover { text-style: bold; }
 """
 
 
@@ -126,17 +121,26 @@ class CreateTournamentScreen(Screen):
             yield Static("Enter one player name per line:")
             yield TextArea(id="player-input")
             yield Static("Format:")
-            with Horizontal():
-                yield Button("Swiss", variant="primary", id="swiss")
-                yield Button("Round Robin", variant="default", id="rr")
-            yield Button("Cancel", variant="error", id="cancel")
+            with RadioSet(id="format"):
+                yield RadioButton("Swiss")
+                yield RadioButton("Round Robin")
+            yield Button("Create", variant="primary", id="create")
+            yield Button("Cancel", variant="default", id="cancel")
+
+    @on(RadioSet.Changed)
+    def _on_format_changed(self, event: RadioSet.Changed):
+        event.stop()
 
     def on_button_pressed(self, event):
         if event.button.id == "cancel":
             self.dismiss(None)
-        if event.button.id not in ("swiss", "rr"):
+        if event.button.id != "create":
             return
-        t_type = TournamentType.SWISS if event.button.id == "swiss" else TournamentType.ROUND_ROBIN
+        rs = self.query_one("#format", RadioSet)
+        if rs.pressed_index < 0:
+            self.notify("Select a format", severity="error")
+            return
+        t_type = TournamentType.SWISS if rs.pressed_index == 0 else TournamentType.ROUND_ROBIN
         text = self.query_one("#player-input", TextArea).text.strip()
         names = [line.strip() for line in text.split("\n") if line.strip()]
         if len(names) < 2:

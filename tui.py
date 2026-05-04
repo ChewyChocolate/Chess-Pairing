@@ -305,10 +305,11 @@ class ChessApp(App):
                 title += f" [{pending} pending]"
             self.query_one("#round-title", Static).update(title)
             for i, m in enumerate(rnd, 1):
+                if not m.is_bye:
+                    bt.add_row(str(i), m.white.name, m.black.name, m.result.value if m.result else "PENDING")
+            for i, m in enumerate(rnd, 1):
                 if m.is_bye:
                     bt.add_row(str(i), (m.white or m.black).name, "[BYE]", m.result.value if m.result else "AUTO")
-                else:
-                    bt.add_row(str(i), m.white.name, m.black.name, m.result.value if m.result else "PENDING")
         else:
             self.query_one("#round-title", Static).update("Round 0")
         if self.result_mode and self.tournament and self.tournament.rounds:

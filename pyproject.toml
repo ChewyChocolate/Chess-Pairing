@@ -1,12 +1,6 @@
-[build-system]
-requires = ["setuptools>=64"]
-build-backend = "setuptools.backends._legacy:_Backend"
-
 [project]
 name = "chess-pairing"
 version = "1.0.0"
-description = "CLI chess tournament pairing system (Swiss & Round Robin)"
+description = "TUI chess tournament pairing system (Swiss & Round Robin)"
 requires-python = ">=3.10"
-
-[tool.setuptools]
-py-modules = ["main", "player", "match", "tournament", "pairing", "errors"]
+dependencies = ["textual>=8.0.0"]

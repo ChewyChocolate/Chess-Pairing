@@ -1,32 +1,41 @@
 # Chess Pairing
 
-A CLI tournament pairing system supporting Swiss and Round Robin formats.
+A TUI tournament pairing system supporting Swiss and Round Robin formats.
 
 ## Quick start
 
 ```bash
+pip install textual
 python3 main.py
 ```
 
-Follow the prompts to enter player names, choose a format, and start pairing.
+First launch shows a setup screen: load an existing tournament or create a new one by entering player names and choosing a format.
 
 ## Commands
 
 | Key | Action |
 |-----|--------|
-| `n` | Next round / enter results |
-| `r` | View/edit past rounds |
+| `n` | Next round / enter result mode |
+| `r` | Review past rounds |
 | `a` | Add a new player |
 | `w` | Withdraw a player |
 | `u` | Undo last result |
+| `d` | Delete last round |
+| `z` | Create backup snapshot |
 | `e` | Export standings (CSV + HTML) |
 | `s` | Save tournament |
-| `h` | Show help |
-| `f` | Change format (Round 1 only) |
-| `q` | Quit |
+| `q` | Quit (with save prompt) |
 
-Results can be entered with shortcuts: `1`/`w` = White wins, `2`/`b` = Black wins,
-`3`/`d` = Draw. Combined format: `2 1` = Board 2, White wins.
+In result mode (press `n` after generating a round):
+
+| Key | Action |
+|-----|--------|
+| `1` / `w` | White wins |
+| `2` / `b` | Black wins |
+| `3` / `d` | Draw |
+| `Esc` | Exit result mode |
+
+Cursor auto-advances to the next pending board after each result.
 
 ## Formats
 
@@ -36,7 +45,7 @@ Results can be entered with shortcuts: `1`/`w` = White wins, `2`/`b` = Black win
 
 ## Requirements
 
-Python 3.10+. Uses only the standard library — no third-party packages.
+Python 3.10+ and `textual>=8.0.0`.
 
 ## Tests
 

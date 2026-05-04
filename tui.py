@@ -17,6 +17,7 @@ from errors import TournamentError
 SAVE_FILE = "tournament_data.json"
 CSV_FILE = "standings.csv"
 HTML_FILE = "standings.html"
+PLAYER_FILE = "players.txt"
 
 CSS = """
 Screen {
@@ -120,6 +121,9 @@ class CreateTournamentScreen(Screen):
             yield Static("Create Tournament")
             yield Static("Enter one player name per line:")
             yield TextArea(id="player-input")
+            with Horizontal():
+                yield Button("Import", variant="default", id="import")
+                yield Button("Export", variant="default", id="export")
             yield Static("Format:")
             with RadioSet(id="format"):
                 yield RadioButton("Swiss")
@@ -132,10 +136,50 @@ class CreateTournamentScreen(Screen):
         event.stop()
 
     def on_button_pressed(self, event):
-        if event.button.id == "cancel":
+        if event.button.id == "import":
+            self._do_import()
+        elif event.button.id == "export":
+            self._do_export()
+        elif event.button.id == "cancel":
             self.dismiss(None)
-        if event.button.id != "create":
+        elif event.button.id != "create":
             return
+        else:
+            self._do_create()
+
+    def _do_import(self):
+        def cb(path):
+            if not path:
+                return
+            try:
+                with open(path) as f:
+                    ta = self.query_one("#player-input", TextArea)
+                    existing = [l for l in ta.text.split("\n") if l.strip()]
+                    names = [l.strip() for l in f if l.strip()]
+                    existing.extend(names)
+                    ta.text = "\n".join(existing)
+                    self.notify(f"Imported {len(names)} players")
+            except FileNotFoundError:
+                self.notify(f"File not found: {path}", severity="error")
+            except Exception as e:
+                self.notify(str(e), severity="error")
+        self.app.push_screen(FileInputDialog("Import from file:", PLAYER_FILE), cb)
+
+    def _do_export(self):
+        def cb(path):
+            if not path:
+                return
+            try:
+                ta = self.query_one("#player-input", TextArea)
+                names = [l.strip() for l in ta.text.split("\n") if l.strip()]
+                with open(path, "w") as f:
+                    f.write("\n".join(names) + "\n")
+                self.notify(f"Exported {len(names)} players to {path}")
+            except Exception as e:
+                self.notify(str(e), severity="error")
+        self.app.push_screen(FileInputDialog("Export to file:", PLAYER_FILE), cb)
+
+    def _do_create(self):
         rs = self.query_one("#format", RadioSet)
         if rs.pressed_index < 0:
             self.notify("Select a format", severity="error")
@@ -180,6 +224,34 @@ class ConfirmDialog(ModalScreen):
 
     def key_escape(self):
         self.dismiss(False)
+
+
+class FileInputDialog(ModalScreen):
+    def __init__(self, title: str, default: str = PLAYER_FILE):
+        super().__init__()
+        self._title = title
+        self._default = default
+
+    def compose(self):
+        yield Static(self._title)
+        yield Input(value=self._default, placeholder="filename")
+        with Horizontal():
+            yield Button("OK", variant="primary", id="ok")
+            yield Button("Cancel", variant="default", id="cancel")
+
+    def on_button_pressed(self, event):
+        if event.button.id == "ok":
+            self._submit()
+        elif event.button.id == "cancel":
+            self.dismiss(None)
+
+    def on_input_submitted(self):
+        self._submit()
+
+    def _submit(self):
+        name = self.query_one(Input).value.strip()
+        if name:
+            self.dismiss(name)
 
 
 class RoundReviewScreen(Screen):
@@ -234,6 +306,8 @@ class ChessApp(App):
     BINDINGS = [
         Binding("n", "next_or_cancel", "Next round"),
         Binding("a", "add_player", "Add player"),
+        Binding("i", "import_players", "Import players"),
+        Binding("p", "export_players_list", "Export players"),
         Binding("u", "undo", "Undo"),
         Binding("z", "snapshot", "Snapshot"),
         Binding("e", "export", "Export"),
@@ -454,6 +528,47 @@ class ChessApp(App):
                 except TournamentError as e:
                     self.notify(str(e))
         self.push_screen(AddPlayerDialog(), cb)
+
+    def action_import_players(self):
+        if not self.tournament:
+            return
+        def cb(path):
+            if not path:
+                return
+            try:
+                with open(path) as f:
+                    names = [l.strip() for l in f if l.strip()]
+                count = 0
+                for name in names:
+                    try:
+                        self.tournament.add_player(Player(name))
+                        count += 1
+                    except TournamentError:
+                        self.notify(f"Skipped invalid name: {name}", severity="error")
+                if count:
+                    self.tournament.save_to_file(SAVE_FILE)
+                    self._redraw()
+                    self.notify(f"Imported {count} players")
+            except FileNotFoundError:
+                self.notify(f"File not found: {path}", severity="error")
+            except Exception as e:
+                self.notify(str(e), severity="error")
+        self.push_screen(FileInputDialog("Import players from:", PLAYER_FILE), cb)
+
+    def action_export_players_list(self):
+        if not self.tournament:
+            return
+        def cb(path):
+            if not path:
+                return
+            try:
+                names = [p.name for p in self.tournament.players]
+                with open(path, "w") as f:
+                    f.write("\n".join(names) + "\n")
+                self.notify(f"Exported {len(names)} players to {path}")
+            except Exception as e:
+                self.notify(str(e), severity="error")
+        self.push_screen(FileInputDialog("Export players to:", PLAYER_FILE), cb)
 
     def action_withdraw(self):
         if not self.tournament:

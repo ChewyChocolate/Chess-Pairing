@@ -34,6 +34,11 @@ Footer { column-span: 2; }
 #setup-center { align: center middle; width: 60; }
 #setup-center > * { margin: 0 1; }
 #player-input { height: 10; }
+Button { color: $text; }
+Button#swiss { background: $primary; color: $text; }
+Button#rr { background: $accent; color: $text; }
+Button#cancel { background: $error; color: $text; }
+Button:hover { text-style: bold; }
 """
 
 

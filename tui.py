@@ -318,6 +318,7 @@ class ChessApp(App):
         Binding("i", "import_players", "Import players"),
         Binding("p", "export_players_list", "Export players"),
         Binding("l", "toggle_lock", "Lock/Unlock"),
+        Binding("c", "new_tournament", "New"),
         Binding("u", "undo", "Undo"),
         Binding("z", "snapshot", "Snapshot"),
         Binding("e", "export", "Export"),
@@ -676,6 +677,24 @@ class ChessApp(App):
                 self.tournament.save_to_file(SAVE_FILE)
             self.exit()
         self.push_screen(ConfirmDialog("Save before quitting?"), cb)
+
+    def action_new_tournament(self):
+        def cb(confirmed):
+            if not confirmed:
+                return
+            if os.path.exists(SAVE_FILE):
+                os.remove(SAVE_FILE)
+            self.tournament = None
+            self.undo_stack.clear()
+            self.result_mode = False
+            self._redraw()
+            self.query_one("#standings-table", DataTable).clear(columns=True)
+            self.query_one("#boards-table", DataTable).clear(columns=True)
+            self.query_one("#round-title", Static).update("Round 0")
+            self.push_screen(SetupScreen(), self._on_setup_done)
+        self.push_screen(ConfirmDialog(
+            "Start a new tournament?\nCurrent data will be discarded."
+        ), cb)
 
 
 def main():

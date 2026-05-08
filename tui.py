@@ -309,6 +309,76 @@ class RoundReviewScreen(Screen):
                 dt.add_row(str(i), m.white.name, m.black.name, res, m.timestamp or "")
 
 
+class PlayerListScreen(Screen):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Back"),
+        Binding("b", "dismiss", "Back"),
+        Binding("r", "reactivate", "Reactivate"),
+    ]
+
+    def __init__(self, tournament):
+        super().__init__()
+        self.tournament = tournament
+
+    def compose(self):
+        with Vertical(classes="panel"):
+            yield Static("Players", classes="panel-title")
+            yield DataTable(id="players-table", cursor_type="row")
+        yield Footer()
+
+    def on_mount(self):
+        t = self.query_one("#players-table", DataTable)
+        t.add_columns("Name", "Status")
+        for p in self.tournament.players:
+            status = "Active" if p.active else "Withdrawn"
+            t.add_row(p.name, status)
+
+    def action_dismiss(self):
+        self.dismiss()
+
+    def action_reactivate(self):
+        t = self.query_one("#players-table", DataTable)
+        if t.cursor_row is None:
+            return
+        try:
+            name = t.get_row_at(t.cursor_row)[0]
+        except Exception:
+            return
+        player = next((p for p in self.tournament.players if p.name == name), None)
+        if player and not player.active:
+            player.active = True
+            self.tournament.save_to_file(SAVE_FILE)
+            self.on_mount()  # refresh
+            self.notify(f"Reactivated {player.name}")
+
+
+class RenameDialog(ModalScreen):
+    def __init__(self, current_name: str):
+        super().__init__()
+        self._current = current_name
+
+    def compose(self):
+        yield Static("Tournament name:")
+        yield Input(value=self._current, placeholder="name")
+        with Horizontal():
+            yield Button("Rename", variant="primary", id="ok")
+            yield Button("Cancel", variant="default", id="cancel")
+
+    def on_button_pressed(self, event):
+        if event.button.id == "ok":
+            self._submit()
+        elif event.button.id == "cancel":
+            self.dismiss(None)
+
+    def on_input_submitted(self):
+        self._submit()
+
+    def _submit(self):
+        name = self.query_one(Input).value.strip()
+        if name:
+            self.dismiss(name)
+
+
 class ChessApp(App):
     CSS = CSS
 
@@ -319,6 +389,8 @@ class ChessApp(App):
         Binding("p", "export_players_list", "Export players"),
         Binding("l", "toggle_lock", "Lock/Unlock"),
         Binding("c", "new_tournament", "New"),
+        Binding("v", "player_list", "Players"),
+        Binding("t", "rename", "Rename"),
         Binding("u", "undo", "Undo"),
         Binding("z", "snapshot", "Snapshot"),
         Binding("e", "export", "Export"),
@@ -332,6 +404,7 @@ class ChessApp(App):
         self.tournament = None
         self.undo_stack = []
         self.result_mode = False
+        self.dirty = False
 
     def compose(self):
         with Vertical(classes="panel", id="standings-panel"):
@@ -365,7 +438,7 @@ class ChessApp(App):
     def _init_display(self):
         st = self.query_one("#standings-table", DataTable)
         st.clear(columns=True)
-        st.add_columns("Pos", "Name", "Score", "BH")
+        st.add_columns("Pos", "Name", "Score", "BH", "SB")
         bt = self.query_one("#boards-table", DataTable)
         bt.clear(columns=True)
         bt.add_columns("#", "White", "Black", "Result")
@@ -378,7 +451,7 @@ class ChessApp(App):
         st.clear()
         for i, p in enumerate(self.tournament.get_standings(), 1):
             tag = " (wd)" if not p.active else ""
-            st.add_row(str(i), p.name + tag, f"{p.score:.1f}", f"{p.buchholz:.1f}")
+            st.add_row(str(i), p.name + tag, f"{p.score:.1f}", f"{p.buchholz:.1f}", f"{p.sonneborn_berger:.2f}")
 
         bt = self.query_one("#boards-table", DataTable)
         bt.clear()
@@ -422,7 +495,12 @@ class ChessApp(App):
         except Exception:
             return
         if data[3] != "PENDING":
-            self.notify(f"Row {data[0]} is not pending")
+            if self.tournament.rounds:
+                rnd = self.tournament.rounds[-1]
+                for i, m in enumerate(rnd):
+                    if not m.is_bye and m.result is None:
+                        self._focus(i + 1)
+                        break
             return
         if self.tournament.rounds and self.tournament.is_round_locked(len(self.tournament.rounds) - 1):
             self.notify("Round is locked — unlock with L first", severity="error")
@@ -434,6 +512,7 @@ class ChessApp(App):
         try:
             self.tournament.record_match_result(match, code)
             self.undo_stack.append(match)
+            self.dirty = True
             self.tournament.save_to_file(SAVE_FILE)
             self._redraw()
             rnd = self.tournament.rounds[-1]
@@ -510,6 +589,7 @@ class ChessApp(App):
         try:
             pairings = self.tournament.generate_next_round()
             self.undo_stack.clear()
+            self.dirty = True
             self.tournament.save_to_file(SAVE_FILE)
             self._redraw()
             for m in pairings:
@@ -538,6 +618,7 @@ class ChessApp(App):
             if name:
                 try:
                     self.tournament.add_player(Player(name))
+                    self.dirty = True
                     self.tournament.save_to_file(SAVE_FILE)
                     self._redraw()
                     self.notify(f"Added {name}")
@@ -562,6 +643,7 @@ class ChessApp(App):
                     except TournamentError:
                         self.notify(f"Skipped invalid name: {name}", severity="error")
                 if count:
+                    self.dirty = True
                     self.tournament.save_to_file(SAVE_FILE)
                     self._redraw()
                     self.notify(f"Imported {count} players")
@@ -592,6 +674,7 @@ class ChessApp(App):
         def cb(player):
             if player:
                 player.active = False
+                self.dirty = True
                 self.tournament.save_to_file(SAVE_FILE)
                 self._redraw()
                 self.notify(f"Withdrew {player.name}")
@@ -607,6 +690,7 @@ class ChessApp(App):
         m = self.undo_stack.pop()
         m.result = None
         self.tournament.recalculate_state()
+        self.dirty = True
         self.tournament.save_to_file(SAVE_FILE)
         self._redraw()
         if self.tournament.rounds:
@@ -627,6 +711,7 @@ class ChessApp(App):
         def cb(confirmed):
             if confirmed:
                 self.tournament.delete_last_round()
+                self.dirty = True
                 self.tournament.save_to_file(SAVE_FILE)
                 self._redraw()
                 self.notify("Round deleted")
@@ -638,6 +723,7 @@ class ChessApp(App):
             return
         idx = len(self.tournament.rounds) - 1
         self.tournament.toggle_round_lock(idx)
+        self.dirty = True
         self.tournament.save_to_file(SAVE_FILE)
         self._redraw()
         state = "locked" if self.tournament.is_round_locked(idx) else "unlocked"
@@ -663,6 +749,7 @@ class ChessApp(App):
         if not self.tournament:
             return
         self.tournament.save_to_file(SAVE_FILE)
+        self.dirty = False
         self.notify(f"Saved at {datetime.now().strftime('%H:%M')}")
 
     def action_review(self):
@@ -671,12 +758,31 @@ class ChessApp(App):
             return
         self.push_screen(RoundReviewScreen(self.tournament))
 
-    def action_quit(self):
-        def cb(confirmed):
-            if confirmed and self.tournament:
+    def action_player_list(self):
+        if not self.tournament:
+            return
+        self.push_screen(PlayerListScreen(self.tournament))
+
+    def action_rename(self):
+        if not self.tournament:
+            return
+        def cb(name):
+            if name:
+                self.tournament.name = name
+                self.dirty = True
                 self.tournament.save_to_file(SAVE_FILE)
+                self.notify(f"Renamed to {name}")
+        self.push_screen(RenameDialog(self.tournament.name), cb)
+
+    def action_quit(self):
+        if self.dirty and self.tournament:
+            def cb(confirmed):
+                if confirmed:
+                    self.tournament.save_to_file(SAVE_FILE)
+                self.exit()
+            self.push_screen(ConfirmDialog("Save before quitting?"), cb)
+        else:
             self.exit()
-        self.push_screen(ConfirmDialog("Save before quitting?"), cb)
 
     def action_new_tournament(self):
         def cb(confirmed):

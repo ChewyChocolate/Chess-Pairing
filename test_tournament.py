@@ -273,5 +273,36 @@ class TestSwissPairing(unittest.TestCase):
             self.assertLessEqual(abs(white_count - black_count), 2)
 
 
+class TestLocking(unittest.TestCase):
+    """Tests for round locking."""
+
+    def setUp(self):
+        self.players = [Player(f"P{i}") for i in range(4)]
+        self.t = Tournament("Test", self.players, TournamentType.SWISS)
+        self.t.generate_next_round()
+
+    def test_initial_not_locked(self):
+        self.assertFalse(self.t.is_round_locked(0))
+
+    def test_toggle_lock(self):
+        self.t.toggle_round_lock(0)
+        self.assertTrue(self.t.is_round_locked(0))
+        self.t.toggle_round_lock(0)
+        self.assertFalse(self.t.is_round_locked(0))
+
+    def test_multiple_rounds_independent_locks(self):
+        self.t.generate_next_round()
+        self.t.toggle_round_lock(0)
+        self.assertTrue(self.t.is_round_locked(0))
+        self.assertFalse(self.t.is_round_locked(1))
+
+    def test_save_and_load_preserves_locks(self):
+        self.t.toggle_round_lock(0)
+        self.t.save_to_file("/tmp/lock_test.json")
+        t2 = Tournament.load_from_file("/tmp/lock_test.json")
+        self.assertTrue(t2.is_round_locked(0))
+        os.remove("/tmp/lock_test.json")
+
+
 if __name__ == "__main__":
     unittest.main()

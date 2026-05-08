@@ -524,8 +524,7 @@ class ChessApp(App):
                         break
                 self.notify(f"Recorded. {len(pending)} pending")
             else:
-                self.result_mode = False
-                self.notify("Round complete! Press N for next")
+                self.notify("All boards recorded. Lock the round (L) to proceed")
         except TournamentError as e:
             self.notify(str(e))
 
@@ -571,8 +570,12 @@ class ChessApp(App):
             return
         if self.result_mode:
             self.result_mode = False
-            self.notify("Cancelled")
-            return
+            rnd = self.tournament.rounds[-1] if self.tournament.rounds else None
+            if rnd and all(m.result is not None for m in rnd):
+                pass  # all recorded — N advances to the lock check below
+            else:
+                self.notify("Cancelled")
+                return
         if self.tournament.rounds and any(
             m.result is None for m in self.tournament.rounds[-1]
         ):
@@ -585,6 +588,9 @@ class ChessApp(App):
                     self._focus(i + 1)
                     break
             self.notify(f"Enter results | {len(pending)} pending | 1=W 2=B 3=D | Esc=cancel")
+            return
+        if self.tournament.rounds and not self.tournament.is_round_locked(len(self.tournament.rounds) - 1):
+            self.notify("Lock the current round (L) before starting the next", severity="warning")
             return
         try:
             pairings = self.tournament.generate_next_round()
